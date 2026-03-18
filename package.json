@@ -1,0 +1,16 @@
+{
+  "name": "whisky-news-monitor",
+  "version": "1.0.0",
+  "description": "Automated monitor for Islay/peated whisky news",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "fast-xml-parser": "^4.3.4",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "playwright": "^1.43.0"
+  }
+}
