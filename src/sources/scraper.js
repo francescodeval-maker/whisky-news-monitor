@@ -73,7 +73,7 @@ async function scrapeSource(browser, source) {
       url:     resolveUrl(i.href, source.url),
     }));
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -95,7 +95,7 @@ async function scrapeAll() {
       }
     });
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 
   return items;
