@@ -39,7 +39,7 @@ function isNew(item) {
 function markSeen(item) {
   getDb()
     .prepare('INSERT OR IGNORE INTO seen_items (id, source, title, url) VALUES (?, ?, ?, ?)')
-    .run(itemId(item), item.source, item.title, item.url);
+    .run(itemId(item), String(item.source || ''), String(item.title || ''), String(item.url || ''));
 }
 
 module.exports = { isNew, markSeen };

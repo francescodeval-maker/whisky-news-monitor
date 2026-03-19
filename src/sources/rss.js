@@ -30,7 +30,7 @@ async function fetchRssSource(source) {
     source:      source.name,
     filter:      source.filter,
     title:       (item.title?.['#text'] || item.title || '').trim(),
-    url:         item.link?.['@_href'] || item.link || item.guid?.['#text'] || item.guid || '',
+    url:         String(item.link?.['@_href'] || item.link?.['#text'] || (typeof item.link === 'string' ? item.link : '') || item.guid?.['#text'] || (typeof item.guid === 'string' ? item.guid : '') || ''),
     publishedAt: item.pubDate || item.published || item.updated || '',
   }));
 
