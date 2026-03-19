@@ -4,6 +4,11 @@ const { applyFilter } = require('./filter');
 const { isNew, markSeen } = require('./dedup');
 const { sendTelegram } = require('./notify');
 
+// Playwright emits unhandled rejections on page/browser close — ignore them
+process.on('unhandledRejection', (reason) => {
+  console.warn('[unhandledRejection]', reason?.message || reason);
+});
+
 async function main() {
   console.log('=== Whisky News Monitor ===');
 
