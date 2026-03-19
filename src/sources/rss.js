@@ -50,7 +50,13 @@ async function fetchRssSource(source) {
     publishedAt: item.pubDate || item.published || item.updated || '',
   }));
 
-  return normalized.filter((i) => i.title && i.url);
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  return normalized.filter((i) => {
+    if (!i.title || !i.url) return false;
+    if (!i.publishedAt) return true; // no date = keep
+    const d = new Date(i.publishedAt).getTime();
+    return isNaN(d) || d >= cutoff;
+  });
 }
 
 async function fetchAllRss() {
