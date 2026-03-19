@@ -10,6 +10,22 @@ const RSS_SOURCES = [
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
 
+function extractUrl(item) {
+  let link = item.link;
+  // Atom feeds return link as array when multiple <link> elements exist
+  if (Array.isArray(link)) {
+    link = link.find((l) => l?.['@_rel'] === 'alternate') || link[0];
+  }
+  return String(
+    link?.['@_href'] ||
+    link?.['#text'] ||
+    (typeof link === 'string' ? link : '') ||
+    item.guid?.['#text'] ||
+    (typeof item.guid === 'string' ? item.guid : '') ||
+    ''
+  );
+}
+
 async function fetchRssSource(source) {
   const res = await fetch(source.url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; whisky-news-monitor/1.0)' },
@@ -30,7 +46,7 @@ async function fetchRssSource(source) {
     source:      source.name,
     filter:      source.filter,
     title:       (item.title?.['#text'] || item.title || '').trim(),
-    url:         String(item.link?.['@_href'] || item.link?.['#text'] || (typeof item.link === 'string' ? item.link : '') || item.guid?.['#text'] || (typeof item.guid === 'string' ? item.guid : '') || ''),
+    url:         extractUrl(item),
     publishedAt: item.pubDate || item.published || item.updated || '',
   }));
 

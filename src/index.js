@@ -2,7 +2,7 @@ const { fetchAllRss } = require('./sources/rss');
 const { scrapeAll }   = require('./sources/scraper');
 const { applyFilter } = require('./filter');
 const { isNew, markSeen } = require('./dedup');
-const { sendTelegram } = require('./notify');
+const { sendDigest } = require('./notify');
 
 // Playwright emits unhandled rejections on page/browser close — ignore them
 process.on('unhandledRejection', (reason) => {
@@ -32,26 +32,29 @@ async function main() {
   const filtered = applyFilter(allItems);
   console.log(`[3] After keyword filter: ${filtered.length} items`);
 
-  // 3. Dedup + notify
+  // 3. Dedup
   console.log('[4] Checking for new items...');
-  let newCount = 0;
+  const newItems = [];
 
   for (const item of filtered) {
     if (!isNew(item)) continue;
-
-    newCount++;
-    console.log(`  NEW: [${item.source}] ${item.title}`);
-
-    try {
-      await sendTelegram(item);
-    } catch (err) {
-      console.error(`  Telegram error for "${item.title}": ${err.message}`);
-    }
-
+    newItems.push(item);
     markSeen(item);
   }
 
-  console.log(`\n=== Done. New items: ${newCount} ===`);
+  console.log(`    New items: ${newItems.length}`);
+
+  // 4. Send digest
+  if (newItems.length > 0) {
+    try {
+      await sendDigest(newItems);
+      console.log(`    Digest sent (${newItems.length} items)`);
+    } catch (err) {
+      console.error(`  Telegram error: ${err.message}`);
+    }
+  }
+
+  console.log(`\n=== Done. New items: ${newItems.length} ===`);
 }
 
 main().catch((err) => {
