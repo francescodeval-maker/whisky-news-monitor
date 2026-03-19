@@ -2,7 +2,7 @@ name: Whisky News Monitor
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 jobs:
@@ -34,4 +34,4 @@ jobs:
           git config user.name "whisky-bot"
           git add data/seen.db
           git diff --staged --quiet || git commit -m "chore: update seen.db"
-          git push
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:master
