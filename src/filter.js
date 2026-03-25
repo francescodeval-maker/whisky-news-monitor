@@ -4,11 +4,9 @@ const KEYWORDS = [
   'bruichladdich', 'octomore', 'port charlotte',
   'kilchoman', 'bunnahabhain', 'ardnahoe', 'port ellen',
   // Other peated
-  'springbank', 'longrow', 'highland park', 'talisker',
-  'ben nevis', 'ardmore', 'benromach',
-  // Generic terms
-  'peated', 'heavily peated', 'islay', 'cask strength',
-  'single cask', 'limited release',
+  'longrow', 'highland park', 'talisker',
+  // Generic peated terms
+  'peated', 'heavily peated', 'islay',
 ];
 
 function matchesKeyword(title) {
