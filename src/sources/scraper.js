@@ -12,7 +12,7 @@ const SCRAPE_SOURCES = [
   { name: 'CaolIla',       url: 'https://www.malts.com/en-gb/distilleries/caol-ila/news' },
   { name: 'Bowmore',       url: 'https://www.bowmore.com/news' },
   { name: 'Kilchoman',     url: 'https://www.kilchomandistillery.com/news' },
-  { name: 'Bunnahabhain',  url: 'https://bunnahabhain.com/news' },
+  { name: 'Bunnahabhain',  url: 'https://bunnahabhain.com/blogs/news' },
   { name: 'Ardnahoe',      url: 'https://www.ardnahoedistillery.com/news' },
   { name: 'PortEllen',     url: 'https://www.portellenwhisky.com/news' },
 ];
@@ -39,7 +39,9 @@ async function extractArticles(page) {
       })
     );
 
-    const valid = items.filter((i) => i.title.length > 5 && i.href);
+    const valid = items.filter((i) =>
+      i.title.length > 5 && i.href && !i.href.includes('/products/')
+    );
     if (valid.length > 0) return { selector, items: valid };
   }
   return { selector: null, items: [] };
