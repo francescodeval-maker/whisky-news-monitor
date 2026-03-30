@@ -8,12 +8,11 @@ const SCRAPE_SOURCES = [
   { name: 'Bruichladdich', url: 'https://www.bruichladdich.com/blogs/news' },
   { name: 'Ardbeg',        url: 'https://www.ardbeg.com/en-gb/news' },
   { name: 'Laphroaig',     url: 'https://www.laphroaig.com/en/news' },
-  { name: 'Lagavulin',     url: 'https://www.malts.com/en-gb/distilleries/lagavulin/news' },
-  { name: 'CaolIla',       url: 'https://www.malts.com/en-gb/distilleries/caol-ila/news' },
+  { name: 'Lagavulin',     url: 'https://www.malts.com/en-gb/distillery-stories-articles' },
+  { name: 'CaolIla',       url: 'https://www.malts.com/en-gb/distillery-stories-articles' },
   { name: 'Bowmore',       url: 'https://www.bowmore.com/news' },
-  { name: 'Kilchoman',     url: 'https://www.kilchomandistillery.com/news' },
+  { name: 'Kilchoman',     url: 'https://www.kilchomandistillery.com/distillery_news/' },
   { name: 'Bunnahabhain',  url: 'https://bunnahabhain.com/blogs/news' },
-  { name: 'Ardnahoe',      url: 'https://www.ardnahoedistillery.com/news' },
   { name: 'PortEllen',     url: 'https://www.portellenwhisky.com/news' },
 ];
 
@@ -24,6 +23,9 @@ const SELECTORS = [
   '.news-item a',
   '.blog-card a',
   '.post-title a',
+  'a[href*="/blogs/news/"]',
+  'a[href*="/distillery_news/"]',
+  'a[href*="/articles/"]',
 ];
 
 async function extractArticles(page) {
@@ -39,9 +41,19 @@ async function extractArticles(page) {
       })
     );
 
-    const valid = items.filter((i) =>
-      i.title.length > 5 && i.href && !i.href.includes('/products/')
-    );
+    const seen = new Set();
+    const valid = items.filter((i) => {
+      if (i.title.length <= 5 || !i.href) return false;
+      if (i.href.includes('/products/')) return false;
+      // Per selettori href-based, esclude la pagina indice stessa (es. /blogs/news senza slug)
+      if (selector.includes('[href*=')) {
+        const match = selector.match(/\[href\*="([^"]+)"\]/);
+        if (match && i.href.replace(/\/$/, '') === match[1]) return false;
+      }
+      if (seen.has(i.href)) return false;
+      seen.add(i.href);
+      return true;
+    });
     if (valid.length > 0) return { selector, items: valid };
   }
   return { selector: null, items: [] };
