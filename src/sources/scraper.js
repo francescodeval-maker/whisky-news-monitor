@@ -8,8 +8,7 @@ const SCRAPE_SOURCES = [
   { name: 'Bruichladdich', url: 'https://www.bruichladdich.com/blogs/news' },
   { name: 'Ardbeg',        url: 'https://www.ardbeg.com/en-gb/news' },
   { name: 'Laphroaig',     url: 'https://www.laphroaig.com/en/news' },
-  { name: 'Lagavulin',     url: 'https://www.malts.com/en-gb/distillery-stories-articles' },
-  { name: 'CaolIla',       url: 'https://www.malts.com/en-gb/distillery-stories-articles' },
+  { name: 'MaltsCom',      url: 'https://www.malts.com/en-gb/distillery-stories-articles' },
   { name: 'Bowmore',       url: 'https://www.bowmore.com/news' },
   { name: 'Kilchoman',     url: 'https://www.kilchomandistillery.com/distillery_news/' },
   { name: 'Bunnahabhain',  url: 'https://bunnahabhain.com/blogs/news' },
@@ -28,6 +27,34 @@ const SELECTORS = [
   'a[href*="/articles/"]',
 ];
 
+async function extractTitle(el) {
+  return el.evaluate((node) => {
+    // 1. Cerca heading dentro il link (Shopify card che wrappa titolo + metadati)
+    const heading = node.querySelector('h1, h2, h3, h4, h5');
+    if (heading) {
+      const t = heading.textContent.trim();
+      if (t.length > 5) return t;
+    }
+    // 2. "Learn More" / "Read More" → risale all'article padre per trovare il titolo
+    const raw = node.textContent.trim();
+    if (/^(learn|read) more$/i.test(raw)) {
+      const parent = node.closest('article') ||
+                     node.closest('[class*="card"]') ||
+                     node.closest('[class*="item"]') ||
+                     node.closest('li');
+      if (parent) {
+        const h = parent.querySelector('h1, h2, h3, h4, h5, [class*="title"]');
+        if (h) return h.textContent.trim();
+      }
+    }
+    // 3. Prima riga significativa (esclude metadati come "7 mins", "Read More", categorie corte)
+    const lines = raw.split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 10 && !/^(\d+\s*(min|sec|mins|secs)|read more|learn more)$/i.test(l));
+    return lines[0] || '';
+  });
+}
+
 async function extractArticles(page) {
   for (const selector of SELECTORS) {
     const elements = await page.$$(selector);
@@ -35,21 +62,21 @@ async function extractArticles(page) {
 
     const items = await Promise.all(
       elements.map(async (el) => {
-        const title = (await el.textContent() || '').trim();
+        const title = await extractTitle(el);
         const href  = await el.getAttribute('href') || '';
         return { title, href };
       })
     );
 
     const seen = new Set();
+    const hrefPattern = selector.includes('[href*=')
+      ? selector.match(/\[href\*="([^"]+)"\]/)?.[1]
+      : null;
+
     const valid = items.filter((i) => {
       if (i.title.length <= 5 || !i.href) return false;
       if (i.href.includes('/products/')) return false;
-      // Per selettori href-based, esclude la pagina indice stessa (es. /blogs/news senza slug)
-      if (selector.includes('[href*=')) {
-        const match = selector.match(/\[href\*="([^"]+)"\]/);
-        if (match && i.href.replace(/\/$/, '') === match[1]) return false;
-      }
+      if (hrefPattern && i.href.replace(/\/$/, '') === hrefPattern) return false;
       if (seen.has(i.href)) return false;
       seen.add(i.href);
       return true;
