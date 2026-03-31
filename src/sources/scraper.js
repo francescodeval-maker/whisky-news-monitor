@@ -27,60 +27,76 @@ const SELECTORS = [
   'a[href*="/articles/"]',
 ];
 
-async function extractTitle(el) {
-  return el.evaluate((node) => {
-    // 1. Cerca heading dentro il link (Shopify card che wrappa titolo + metadati)
-    const heading = node.querySelector('h1, h2, h3, h4, h5');
-    if (heading) {
-      const t = heading.textContent.trim();
-      if (t.length > 5) return t;
-    }
-    // 2. "Learn More" / "Read More" → risale all'article padre per trovare il titolo
-    const raw = node.textContent.trim();
-    if (/^(learn|read) more$/i.test(raw)) {
-      const parent = node.closest('article') ||
-                     node.closest('[class*="card"]') ||
-                     node.closest('[class*="item"]') ||
-                     node.closest('li');
-      if (parent) {
-        const h = parent.querySelector('h1, h2, h3, h4, h5, [class*="title"]');
-        if (h) return h.textContent.trim();
-      }
-    }
-    // 3. Prima riga significativa (esclude metadati come "7 mins", "Read More", categorie corte)
-    const lines = raw.split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 10 && !/^(\d+\s*(min|sec|mins|secs)|read more|learn more)$/i.test(l));
-    return lines[0] || '';
-  });
-}
+// Stessa finestra temporale usata da rss.js
+const CUTOFF_MS = 24 * 60 * 60 * 1000;
 
+// Estrae tutti gli articoli dal DOM in un'unica evaluate() call.
+// Ritorna array di { title, href, publishedAt } — publishedAt è stringa ISO o ''.
 async function extractArticles(page) {
   for (const selector of SELECTORS) {
-    const elements = await page.$$(selector);
-    if (elements.length === 0) continue;
+    const count = await page.$$eval(selector, (els) => els.length);
+    if (count === 0) continue;
 
-    const items = await Promise.all(
-      elements.map(async (el) => {
-        const title = await extractTitle(el);
-        const href  = await el.getAttribute('href') || '';
-        return { title, href };
+    const hrefPattern = selector.includes('[href*=')
+      ? (selector.match(/\[href\*="([^"]+)"\]/)?.[1] || null)
+      : null;
+
+    const raw = await page.$$eval(selector, (elements) =>
+      elements.map((el) => {
+        // --- Titolo ---
+        let title = '';
+        const heading = el.querySelector('h1, h2, h3, h4, h5');
+        if (heading && heading.textContent.trim().length > 5) {
+          title = heading.textContent.trim();
+        } else {
+          const text = el.textContent.trim();
+          if (/^(learn|read) more$/i.test(text)) {
+            // "Learn More" link → cerca titolo nell'article padre
+            const parent = el.closest('article') ||
+                           el.closest('[class*="card"]') ||
+                           el.closest('[class*="item"]') ||
+                           el.closest('li');
+            const h = parent?.querySelector('h1, h2, h3, h4, h5, [class*="title"]');
+            title = h?.textContent.trim() || '';
+          } else {
+            // Prima riga significativa (esclude "7 mins", "Read More", ecc.)
+            const lines = text.split('\n')
+              .map((l) => l.trim())
+              .filter((l) => l.length > 10 && !/^(\d+\s*(min|sec|mins|secs)|read more|learn more)$/i.test(l));
+            title = lines[0] || '';
+          }
+        }
+
+        // --- Data pubblicazione ---
+        const container = el.closest('article') ||
+                          el.closest('[class*="card"]') ||
+                          el.closest('[class*="item"]') ||
+                          el.closest('li') ||
+                          el.parentElement;
+        const timeEl = container?.querySelector('time[datetime]') ||
+                       el.querySelector('time[datetime]');
+        const publishedAt = timeEl?.getAttribute('datetime') || '';
+
+        return { title, href: el.getAttribute('href') || '', publishedAt };
       })
     );
 
+    const cutoff = Date.now() - CUTOFF_MS;
     const seen = new Set();
-    const hrefPattern = selector.includes('[href*=')
-      ? selector.match(/\[href\*="([^"]+)"\]/)?.[1]
-      : null;
-
-    const valid = items.filter((i) => {
-      if (i.title.length <= 5 || !i.href) return false;
+    const valid = raw.filter((i) => {
+      if (!i.title || i.title.length <= 5 || !i.href) return false;
       if (i.href.includes('/products/')) return false;
       if (hrefPattern && i.href.replace(/\/$/, '') === hrefPattern) return false;
+      // Filtro data: se disponibile e più vecchio di 24h, scarta
+      if (i.publishedAt) {
+        const d = new Date(i.publishedAt).getTime();
+        if (!isNaN(d) && d < cutoff) return false;
+      }
       if (seen.has(i.href)) return false;
       seen.add(i.href);
       return true;
     });
+
     if (valid.length > 0) return { selector, items: valid };
   }
   return { selector: null, items: [] };
@@ -108,10 +124,11 @@ async function scrapeSource(browser, source) {
     }
 
     return items.map((i) => ({
-      source:  source.name,
-      filter:  false,
-      title:   i.title,
-      url:     resolveUrl(i.href, source.url),
+      source:      source.name,
+      filter:      false,
+      title:       i.title,
+      url:         resolveUrl(i.href, source.url),
+      publishedAt: i.publishedAt,
     }));
   } finally {
     await page.close().catch(() => {});
